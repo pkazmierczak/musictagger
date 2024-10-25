@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/dhowden/tag"
@@ -42,12 +43,12 @@ func TestComputeTargetPath(t *testing.T) {
 		{
 			"polish diacritics",
 			mockTag{album: "zażółć", artist: "gęślą", track: 1, title: "jaźń"},
-			"gesla-zazolc/01-jazn.flac",
+			filepath.Join("gesla-zazolc", "01-jazn.flac"),
 		},
 		{
 			"forward slash and space",
 			mockTag{album: "zażółć/gęślą", artist: "jaźń", track: 10, title: "już dziś"},
-			"jazn-zazolc_gesla/10-juz_dzis.flac",
+			filepath.Join("jazn-zazolc_gesla", "10-juz_dzis.flac"),
 		},
 	}
 	for _, tt := range tests {
