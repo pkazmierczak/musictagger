@@ -23,13 +23,13 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 		artist = source.AlbumArtist()
 	}
 
-	outputDir += fmt.Sprintf("%s-%s", artist, source.Album())
+	outputDir += strings.ToLower(fmt.Sprintf("%s-%s", artist, source.Album()))
 
-	outputFile += fmt.Sprintf("%s-%s%s",
+	outputFile += strings.ToLower(fmt.Sprintf("%s-%s%s",
 		fmt.Sprintf("%02d", track),
 		source.Title(),
-		strings.ToLower(filepath.Ext(originalPath)),
-	)
+		filepath.Ext(originalPath),
+	))
 
 	// is this a multi-album? prepend the file with album number
 	// if source.
@@ -38,9 +38,6 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 		d := strconv.Itoa(disc)
 		outputFile = fmt.Sprintf("%s-%s", d, outputFile)
 	}
-
-	outputDir = strings.ToLower(outputDir)
-	outputFile = strings.ToLower(outputFile)
 
 	// get rid of weird characters
 	for k, v := range replacementsTable {
