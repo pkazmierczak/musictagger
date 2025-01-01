@@ -18,6 +18,7 @@ var (
 	replacements = flag.String("replacements", "replacements.json", "Path to the json file containing a map of replacements")
 	musicLib     = flag.String("library", "", "Path to the music library")
 	source       = flag.String("source", ".", "source directory, defaults to current dir")
+	dry          = flag.Bool("dry", false, "Dry run (no actual files moved)")
 	loglvl       = flag.String("log-level", "info", "The log level")
 )
 
@@ -68,6 +69,10 @@ func main() {
 
 			log.Infof("renaming %s to %s\n", m.Path, filepath.Join(*musicLib, computedPath))
 
+			if *dry {
+				continue
+			}
+
 			if _, err := os.Stat(newDir); os.IsNotExist(err) {
 				err := os.Mkdir(newDir, 0755)
 				if err != nil {
@@ -94,6 +99,9 @@ func main() {
 					originalDir, d.Name()),
 					filepath.Join(newDir, d.Name()),
 				)
+				if *dry {
+					return nil
+				}
 				if err := os.Rename(
 					filepath.Join(originalDir, d.Name()),
 					filepath.Join(newDir, d.Name()),
