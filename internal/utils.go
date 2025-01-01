@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dhowden/tag"
@@ -17,16 +18,26 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 
 	track, _ := source.Track()
 
-	outputDir += fmt.Sprintf("%s-%s",
-		source.Artist(),
-		source.Album(),
-	)
+	artist := source.Artist()
+	if source.AlbumArtist() != "" {
+		artist = source.AlbumArtist()
+	}
+
+	outputDir += fmt.Sprintf("%s-%s", artist, source.Album())
 
 	outputFile += fmt.Sprintf("%s-%s%s",
 		fmt.Sprintf("%02d", track),
 		source.Title(),
 		strings.ToLower(filepath.Ext(originalPath)),
 	)
+
+	// is this a multi-album? prepend the file with album number
+	// if source.
+	disc, discs := source.Disc()
+	if discs > 1 {
+		d := strconv.Itoa(disc)
+		outputFile = fmt.Sprintf("%s-%s", d, outputFile)
+	}
 
 	// get rid of weird characters
 	for k, v := range replacementsTable {
@@ -38,6 +49,11 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 	// Remove it.
 	outputFile = strings.ReplaceAll(outputFile, "/", "_")
 	outputDir = strings.ReplaceAll(outputDir, "/", "_")
+
+	// outputDir should not be too long, otherwise it becomes annoying.
+	if len(outputDir) > 40 {
+		outputDir = outputDir[:40]
+	}
 
 	return filepath.Join(outputDir, outputFile)
 }

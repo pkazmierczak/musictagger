@@ -50,6 +50,11 @@ func TestComputeTargetPath(t *testing.T) {
 			mockTag{album: "zażółć/gęślą", artist: "jaźń", track: 10, title: "już dziś"},
 			filepath.Join("jazn-zazolc_gesla", "10-juz_dzis.flac"),
 		},
+		{
+			"multi-disc",
+			mockTag{album: "zażółć/gęślą", artist: "jaźń", track: 10, tracks: 11, disc: 2, discs: 3, title: "już dziś"},
+			filepath.Join("jazn-zazolc_gesla", "2-10-juz_dzis.flac"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
