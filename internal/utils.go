@@ -39,6 +39,9 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 		outputFile = fmt.Sprintf("%s-%s", d, outputFile)
 	}
 
+	outputDir = strings.ToLower(outputDir)
+	outputFile = strings.ToLower(outputFile)
+
 	// get rid of weird characters
 	for k, v := range replacementsTable {
 		outputDir = strings.ReplaceAll(outputDir, k, v)
