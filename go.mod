@@ -1,10 +1,15 @@
-module github.com/pkazmierczak/musictagger
+module github.com/pkazmierczak/librato
 
 go 1.25.6
 
 require (
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/sirupsen/logrus v1.9.4
 )
 
-require golang.org/x/sys v0.40.0 // indirect
+require (
+	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/shoenig/test v1.12.2 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+)

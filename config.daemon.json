@@ -1,0 +1,29 @@
+{
+  "replacements": {
+    "ą": "a",
+    "ć": "c",
+    "ę": "e",
+    "ł": "l",
+    "ń": "n",
+    "ó": "o",
+    "ś": "s",
+    "ź": "z",
+    "ż": "z",
+    " ": "_",
+    "&": "_",
+    "/": "_"
+  },
+  "pattern": {
+    "dir_pattern": "{{artist}}-{{album}}",
+    "file_pattern": "{{disc_prefix}}{{track}}-{{title}}"
+  },
+  "daemon": {
+    "watch_dir": "/mnt/incoming/music",
+    "quarantine_dir": "/mnt/incoming/needs-tagging",
+    "debounce_time": "3s",
+    "state_file": "/var/lib/librato/state.json",
+    "pid_file": "/var/run/librato.pid",
+    "scan_on_startup": true,
+    "cleanup_empty_dirs": true
+  }
+}

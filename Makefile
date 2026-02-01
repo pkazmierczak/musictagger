@@ -11,10 +11,10 @@ ifeq ($(GITCOMMIT),)
 endif
 
 # set LDFLAGS and inject version information
-CTIMEVAR=-X github.com/pkazmierczak/musictagger/version.GITCOMMIT=$(GITCOMMIT) -X github.com/pkazmierczak/musictagger/version.VERSION=$(VERSION)
+CTIMEVAR=-X github.com/pkazmierczak/librato/version.GITCOMMIT=$(GITCOMMIT) -X github.com/pkazmierczak/librato/version.VERSION=$(VERSION)
 GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
 
 release:
-	CGO_ENABLED=0 go build ${GO_LDFLAGS} -o musictagger cmd/musictagger/main.go
+	CGO_ENABLED=0 go build ${GO_LDFLAGS} -o librato cmd/librato/main.go
 install:
-	cp musictagger /usr/local/bin
+	cp librato /usr/local/bin

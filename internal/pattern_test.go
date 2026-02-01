@@ -3,6 +3,8 @@ package internal
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/shoenig/test/must"
 )
 
 func TestPattern_FormatPath(t *testing.T) {
@@ -93,9 +95,7 @@ func TestPattern_FormatPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.pattern.FormatPath(tt.source, originalPath, replacementsTable)
-			if got != tt.want {
-				t.Errorf("Pattern.FormatPath() = %v, want %v", got, tt.want)
-			}
+			must.Eq(t, tt.want, got)
 		})
 	}
 }
@@ -103,19 +103,13 @@ func TestPattern_FormatPath(t *testing.T) {
 func TestPattern_FormatPath_NilMetadata(t *testing.T) {
 	pattern := DefaultPattern()
 	got := pattern.FormatPath(nil, "/test/path.flac", map[string]string{})
-	if got != "" {
-		t.Errorf("Pattern.FormatPath() with nil metadata = %v, want empty string", got)
-	}
+	must.Eq(t, "", got)
 }
 
 func TestDefaultPattern(t *testing.T) {
 	pattern := DefaultPattern()
-	if pattern.DirPattern != "{{artist}}-{{album}}" {
-		t.Errorf("DefaultPattern().DirPattern = %v, want {{artist}}-{{album}}", pattern.DirPattern)
-	}
-	if pattern.FilePattern != "{{track}}-{{title}}" {
-		t.Errorf("DefaultPattern().FilePattern = %v, want {{track}}-{{title}}", pattern.FilePattern)
-	}
+	must.Eq(t, "{{artist}}-{{album}}", pattern.DirPattern)
+	must.Eq(t, "{{track}}-{{title}}", pattern.FilePattern)
 }
 
 func TestBuildContext(t *testing.T) {
@@ -154,12 +148,8 @@ func TestBuildContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			got, exists := context[tt.key]
-			if !exists {
-				t.Errorf("buildContext() missing key %v", tt.key)
-			}
-			if got != tt.want {
-				t.Errorf("buildContext()[%v] = %v, want %v", tt.key, got, tt.want)
-			}
+			must.True(t, exists)
+			must.Eq(t, tt.want, got)
 		})
 	}
 }
@@ -176,7 +166,5 @@ func TestBuildContext_SingleDisc(t *testing.T) {
 
 	context := buildContext(metadata, "/test/path.flac")
 
-	if context["disc_prefix"] != "" {
-		t.Errorf("buildContext() disc_prefix for single disc = %v, want empty string", context["disc_prefix"])
-	}
+	must.Eq(t, "", context["disc_prefix"])
 }

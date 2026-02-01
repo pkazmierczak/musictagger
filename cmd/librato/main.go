@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/pkazmierczak/musictagger"
-	"github.com/pkazmierczak/musictagger/internal"
+	"github.com/pkazmierczak/librato/internal"
 )
 
 var (
+	// Existing flags
 	configFile   = flag.String("config", "config.json", "Path to the configuration file (optional)")
 	replacements = flag.String("replacements", "", "Path to the json file containing a map of replacements (legacy, prefer config file)")
 	dirPattern   = flag.String("dir-pattern", "", "Directory naming pattern (e.g., '{{artist}}-{{album}}')")
@@ -23,6 +21,13 @@ var (
 	source       = flag.String("source", ".", "source directory, defaults to current dir")
 	dry          = flag.Bool("dry", false, "Dry run (no actual files moved)")
 	loglvl       = flag.String("log-level", "info", "The log level")
+
+	// New daemon-specific flags
+	daemon        = flag.Bool("daemon", false, "Run as background daemon")
+	watchDir      = flag.String("watch-dir", "", "Directory to watch (daemon mode)")
+	quarantineDir = flag.String("quarantine-dir", "", "Directory for untagged files (daemon mode)")
+	pidFile       = flag.String("pid-file", "/var/run/librato.pid", "PID file path (daemon mode)")
+	stateFile     = flag.String("state-file", "/var/lib/librato/state.json", "State file path (daemon mode)")
 )
 
 func main() {
@@ -32,7 +37,7 @@ func main() {
 		log.Fatal("must provide an absolute path to the music library")
 	}
 
-	// setup logging first
+	// Setup logging
 	logLevel, err := log.ParseLevel(*loglvl)
 	if err != nil {
 		logLevel = log.InfoLevel
@@ -41,6 +46,20 @@ func main() {
 	log.SetLevel(logLevel)
 
 	// Load configuration
+	config := loadConfiguration()
+
+	log.Infof("using patterns: dir=%s, file=%s", config.Pattern.DirPattern, config.Pattern.FilePattern)
+
+	// Mode selection
+	if *daemon {
+		runDaemon(config)
+	} else {
+		runOneShot(config)
+	}
+}
+
+// loadConfiguration loads and merges configuration from multiple sources
+func loadConfiguration() internal.Config {
 	config := internal.DefaultConfig()
 
 	// Try to load config file if it exists
@@ -83,69 +102,57 @@ func main() {
 		log.Debugf("using file pattern from CLI: %s", *filePattern)
 	}
 
-	log.Infof("using patterns: dir=%s, file=%s", config.Pattern.DirPattern, config.Pattern.FilePattern)
+	return config
+}
 
-	musicLibrary, err := musictagger.GetAllTags(*source)
-	if err != nil {
-		log.Fatal(err)
+// runOneShot runs the traditional one-shot processing mode
+func runOneShot(config internal.Config) {
+	processor := internal.NewProcessor(config, *musicLib, *dry, log.StandardLogger())
+
+	if err := processor.ProcessDirectory(*source); err != nil {
+		log.Fatalf("failed to process directory: %v", err)
 	}
 
-	for originalDir, music := range musicLibrary {
-		var newDir string
-		for _, m := range music {
-			computedPath := config.Pattern.FormatPath(m.Metadata, m.Path, config.Replacements)
-			newDir = filepath.Dir(filepath.Join(*musicLib, computedPath))
-			newPath := filepath.Join(*musicLib, computedPath)
+	log.Info("processing complete")
+}
 
-			if m.Path == newPath {
-				continue
-			}
+// runDaemon runs the background daemon mode
+func runDaemon(config internal.Config) {
+	// Validate daemon-specific requirements
+	if *watchDir == "" {
+		log.Fatal("daemon mode requires -watch-dir flag")
+	}
+	if *quarantineDir == "" {
+		log.Fatal("daemon mode requires -quarantine-dir flag")
+	}
 
-			log.Infof("renaming %s to %s\n", m.Path, filepath.Join(*musicLib, computedPath))
+	log.Infof("starting daemon mode: watching %s", *watchDir)
 
-			if *dry {
-				continue
-			}
+	// Create processor
+	processor := internal.NewProcessor(config, *musicLib, *dry, log.StandardLogger())
 
-			if _, err := os.Stat(newDir); os.IsNotExist(err) {
-				err := os.Mkdir(newDir, 0755)
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
+	// Create daemon
+	daemonOpts := DaemonOptions{
+		WatchDir:      *watchDir,
+		QuarantineDir: *quarantineDir,
+		PIDFile:       *pidFile,
+		StateFile:     *stateFile,
+		ScanOnStartup: true,
+		CleanupEmpty:  true,
+	}
 
-			if err := os.Rename(m.Path, newPath); err != nil {
-				log.Warn(err)
-			}
-		}
+	daemon, err := NewDaemon(processor, daemonOpts)
+	if err != nil {
+		log.Fatalf("failed to create daemon: %v", err)
+	}
 
-		if originalDir == newDir {
-			continue
-		}
+	// Start daemon
+	if err := daemon.Start(); err != nil {
+		log.Fatalf("failed to start daemon: %v", err)
+	}
 
-		// if there's any other files in the directory, copy them
-		if err := filepath.WalkDir(originalDir, func(s string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !d.IsDir() {
-				log.Infof("renaming %s to %s\n", filepath.Join(
-					originalDir, d.Name()),
-					filepath.Join(newDir, d.Name()),
-				)
-				if *dry {
-					return nil
-				}
-				if err := os.Rename(
-					filepath.Join(originalDir, d.Name()),
-					filepath.Join(newDir, d.Name()),
-				); err != nil {
-					log.Warn(err)
-				}
-			}
-			return nil
-		}); err != nil {
-			log.Warn(err)
-		}
+	// Run daemon event loop
+	if err := daemon.Run(); err != nil {
+		log.Fatalf("daemon error: %v", err)
 	}
 }

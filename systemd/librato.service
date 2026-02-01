@@ -1,0 +1,46 @@
+[Unit]
+Description=Librato - Automatic Music Library Organizer
+Documentation=https://github.com/pkazmierczak/librato
+After=network.target
+
+[Service]
+Type=simple
+User=librato
+Group=librato
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/librato /mnt/music /mnt/incoming
+
+# Runtime
+WorkingDirectory=/var/lib/librato
+PIDFile=/var/run/librato/librato.pid
+
+# Command
+ExecStart=/usr/local/bin/librato \
+    -daemon \
+    -config /etc/librato/config.json \
+    -library /mnt/music \
+    -watch-dir /mnt/incoming/music \
+    -quarantine-dir /mnt/incoming/needs-tagging \
+    -log-level info
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=librato
+
+# Shutdown
+TimeoutStopSec=30s
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
