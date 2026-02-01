@@ -15,6 +15,6 @@ CTIMEVAR=-X github.com/pkazmierczak/librato/version.GITCOMMIT=$(GITCOMMIT) -X gi
 GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
 
 release:
-	CGO_ENABLED=0 go build ${GO_LDFLAGS} -o librato cmd/librato/main.go
+	CGO_ENABLED=0 go build ${GO_LDFLAGS} -o librato ./cmd/librato
 install:
 	cp librato /usr/local/bin
