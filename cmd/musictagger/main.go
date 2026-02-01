@@ -15,7 +15,10 @@ import (
 )
 
 var (
-	replacements = flag.String("replacements", "replacements.json", "Path to the json file containing a map of replacements")
+	configFile   = flag.String("config", "config.json", "Path to the configuration file (optional)")
+	replacements = flag.String("replacements", "", "Path to the json file containing a map of replacements (legacy, prefer config file)")
+	dirPattern   = flag.String("dir-pattern", "", "Directory naming pattern (e.g., '{{artist}}-{{album}}')")
+	filePattern  = flag.String("file-pattern", "", "File naming pattern (e.g., '{{disc_prefix}}{{track}}-{{title}}')")
 	musicLib     = flag.String("library", "", "Path to the music library")
 	source       = flag.String("source", ".", "source directory, defaults to current dir")
 	dry          = flag.Bool("dry", false, "Dry run (no actual files moved)")
@@ -29,7 +32,33 @@ func main() {
 		log.Fatal("must provide an absolute path to the music library")
 	}
 
-	var replacementsMap map[string]string
+	// setup logging first
+	logLevel, err := log.ParseLevel(*loglvl)
+	if err != nil {
+		logLevel = log.InfoLevel
+		log.Warnf("invalid log-level %s, set to %v", *loglvl, log.InfoLevel)
+	}
+	log.SetLevel(logLevel)
+
+	// Load configuration
+	config := internal.DefaultConfig()
+
+	// Try to load config file if it exists
+	if *configFile != "" {
+		if _, err := os.Stat(*configFile); err == nil {
+			loadedConfig, err := internal.LoadConfig(*configFile)
+			if err != nil {
+				log.Warnf("failed to load config file %s: %v, using defaults", *configFile, err)
+			} else {
+				config = loadedConfig
+				log.Debugf("loaded config from %s", *configFile)
+			}
+		} else {
+			log.Debugf("config file %s not found, using defaults", *configFile)
+		}
+	}
+
+	// Legacy: support old replacements.json file
 	if *replacements != "" {
 		replacementsFile, err := os.Open(*replacements)
 		if err != nil {
@@ -38,18 +67,23 @@ func main() {
 		defer replacementsFile.Close()
 
 		b, _ := io.ReadAll(replacementsFile)
-		if err = json.Unmarshal(b, &replacementsMap); err != nil {
+		if err = json.Unmarshal(b, &config.Replacements); err != nil {
 			log.Fatal(err)
 		}
+		log.Debugf("loaded replacements from %s", *replacements)
 	}
 
-	// setup logging
-	logLevel, err := log.ParseLevel(*loglvl)
-	if err != nil {
-		logLevel = log.InfoLevel
-		log.Warnf("invalid log-level %s, set to %v", *loglvl, log.InfoLevel)
+	// CLI flags override config file
+	if *dirPattern != "" {
+		config.Pattern.DirPattern = *dirPattern
+		log.Debugf("using dir pattern from CLI: %s", *dirPattern)
 	}
-	log.SetLevel(logLevel)
+	if *filePattern != "" {
+		config.Pattern.FilePattern = *filePattern
+		log.Debugf("using file pattern from CLI: %s", *filePattern)
+	}
+
+	log.Infof("using patterns: dir=%s, file=%s", config.Pattern.DirPattern, config.Pattern.FilePattern)
 
 	musicLibrary, err := musictagger.GetAllTags(*source)
 	if err != nil {
@@ -59,7 +93,7 @@ func main() {
 	for originalDir, music := range musicLibrary {
 		var newDir string
 		for _, m := range music {
-			computedPath := internal.ComputeTargetPath(m.Metadata, m.Path, replacementsMap)
+			computedPath := config.Pattern.FormatPath(m.Metadata, m.Path, config.Replacements)
 			newDir = filepath.Dir(filepath.Join(*musicLib, computedPath))
 			newPath := filepath.Join(*musicLib, computedPath)
 

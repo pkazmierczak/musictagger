@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dhowden/tag"
+	log "github.com/sirupsen/logrus"
 )
 
 func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTable map[string]string) string {
@@ -54,6 +55,8 @@ func ComputeTargetPath(source tag.Metadata, originalPath string, replacementsTab
 	if len(outputDir) > 40 {
 		outputDir = outputDir[:40]
 	}
+
+	log.Debugf("computed path for file %s: %s\n", originalPath, filepath.Join(outputDir, outputFile))
 
 	return filepath.Join(outputDir, outputFile)
 }
