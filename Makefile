@@ -32,6 +32,6 @@ rpm: release
 	rpmbuild -bb \
 		--define "_topdir $(PWD)/rpmbuild" \
 		--define "_version $(shell cat VERSION.txt | tr -d 'v')" \
-		--define "_sourcedir $(PWD)" \
+		--define "_sourcedir $(PWD)/rpmbuild/SOURCES" \
 		rpm/librato.spec
 	mv rpmbuild/RPMS/*/*.rpm .

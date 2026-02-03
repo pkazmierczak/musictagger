@@ -6,6 +6,8 @@ Summary:        Automatic music library organizer daemon
 License:        MIT
 URL:            https://github.com/pkazmierczak/librato
 Source0:        librato
+Source1:        librato.service
+Source2:        config.daemon.json
 
 %description
 Librato is a tool that automatically organizes your music library
@@ -25,10 +27,10 @@ Features include:
 install -D -m 0755 %{SOURCE0} %{buildroot}%{_bindir}/librato
 
 # Install systemd service
-install -D -m 0644 systemd/librato.service %{buildroot}%{_unitdir}/librato.service
+install -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/librato.service
 
 # Install example config
-install -D -m 0644 config.daemon.json %{buildroot}%{_sysconfdir}/librato/config.json.example
+install -D -m 0644 %{SOURCE2} %{buildroot}%{_sysconfdir}/librato/config.json.example
 
 # Create state directories
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/librato
