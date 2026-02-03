@@ -72,7 +72,8 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           ARCH=${{ matrix.arch }}
-          PKG_DIR="librato_${VERSION}_${ARCH}"
+          # Debian naming: <package>_<version>-<revision>_<architecture>.deb
+          PKG_DIR="librato_${VERSION}-1_${ARCH}"
 
           # Create package structure
           mkdir -p "${PKG_DIR}/DEBIAN"
@@ -85,10 +86,10 @@ jobs:
           install -m 0644 systemd/librato.service "${PKG_DIR}/lib/systemd/system/librato.service"
           install -m 0644 config.daemon.json "${PKG_DIR}/etc/librato/config.json.example"
 
-          # Create control file
+          # Create control file (no leading whitespace allowed)
           cat > "${PKG_DIR}/DEBIAN/control" << EOF
           Package: librato
-          Version: ${VERSION}
+          Version: ${VERSION}-1
           Architecture: ${ARCH}
           Maintainer: Piotr Kazmierczak <phk@mm.st>
           Description: Automatic music library organizer daemon
@@ -132,8 +133,8 @@ jobs:
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librato-${{ steps.version.outputs.version }}-${{ matrix.arch }}.deb
-          path: librato_${{ steps.version.outputs.version }}_${{ matrix.arch }}.deb
+          name: librato_${{ steps.version.outputs.version }}-1_${{ matrix.arch }}.deb
+          path: librato_${{ steps.version.outputs.version }}-1_${{ matrix.arch }}.deb
 
   build_rpm:
     runs-on: ubuntu-latest
@@ -203,9 +204,11 @@ jobs:
 
           chmod +x librato
 
+          # RPM naming: <package>-<version>-<release>.<architecture>.rpm
           fpm -s dir -t rpm \
             -n librato \
             -v "${VERSION}" \
+            --iteration 1 \
             -a "${ARCH}" \
             --license MIT \
             --url "https://github.com/pkazmierczak/librato" \
@@ -222,5 +225,5 @@ jobs:
       - name: Upload rpm artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librato-${{ steps.version.outputs.version }}-${{ matrix.arch }}.rpm
-          path: librato-*.rpm
+          name: librato-${{ steps.version.outputs.version }}-1.${{ matrix.arch }}.rpm
+          path: librato-${{ steps.version.outputs.version }}-1.${{ matrix.arch }}.rpm
