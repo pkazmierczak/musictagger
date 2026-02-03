@@ -23,18 +23,20 @@ make build
 
 ## Usage
 
+Most options are configured via a config file (default: `/etc/librato/config.json`). See the [Configuration](#configuration) section below.
+
 ### One-Shot Mode (CLI)
 
 Process a directory of music files once and exit:
 
 ```bash
-librato -library /path/to/music/library -source /path/to/new/files
+librato -config config.json -source /path/to/new/files
 ```
 
 **Dry run** (preview changes without moving files):
 
 ```bash
-librato -library /path/to/music/library -source /path/to/new/files -dry
+librato -config config.json -source /path/to/new/files -dry
 ```
 
 ### Daemon Mode (Background Service)
@@ -42,12 +44,10 @@ librato -library /path/to/music/library -source /path/to/new/files -dry
 Run continuously and watch a directory for new files:
 
 ```bash
-librato -daemon \
-  -library /mnt/music \
-  -watch-dir /mnt/incoming/music \
-  -quarantine-dir /mnt/incoming/needs-tagging \
-  -config config.daemon.json
+librato -daemon -config config.daemon.json
 ```
+
+All daemon settings (watch directory, quarantine directory, etc.) are configured in the config file.
 
 **How daemon mode works:**
 1. On startup, scans the watch directory for existing files
@@ -84,10 +84,14 @@ sudo journalctl -u librato -f
 
 ## Configuration
 
-Create a `config.json` file to customize behavior:
+Create a `config.json` file to customize behavior. The default location is `/etc/librato/config.json`.
+
+### One-Shot Mode Config
 
 ```json
 {
+  "library": "/path/to/music/library",
+  "log_level": "info",
   "replacements": {
     "ą": "a",
     " ": "_",
@@ -96,7 +100,20 @@ Create a `config.json` file to customize behavior:
   "pattern": {
     "dir_pattern": "{{artist}}-{{album}}",
     "file_pattern": "{{disc_prefix}}{{track}}-{{title}}"
-  },
+  }
+}
+```
+
+### Daemon Mode Config
+
+For daemon mode, add a `daemon` section:
+
+```json
+{
+  "library": "/mnt/music",
+  "log_level": "info",
+  "replacements": { ... },
+  "pattern": { ... },
   "daemon": {
     "watch_dir": "/mnt/incoming/music",
     "quarantine_dir": "/mnt/incoming/needs-tagging",
@@ -109,7 +126,7 @@ Create a `config.json` file to customize behavior:
 }
 ```
 
-See [config.daemon.json](config.daemon.json) for a complete example.
+See [config.example.json](config.example.json) for a one-shot example and [config.daemon.json](config.daemon.json) for a daemon example.
 
 ### Pattern Variables
 
@@ -131,53 +148,23 @@ See [PATTERNS.md](PATTERNS.md) for more details.
 
 ## CLI Flags
 
-### Common Flags
-
-- `-library` - Path to music library (required)
-- `-config` - Path to configuration file (default: `config.json`)
-- `-dry` - Dry run mode (no files moved)
-- `-log-level` - Logging level: debug, info, warn, error (default: `info`)
-
-### One-Shot Mode Flags
-
-- `-source` - Source directory to process (default: current directory)
-- `-dir-pattern` - Override directory pattern from config
-- `-file-pattern` - Override file pattern from config
-
-### Daemon Mode Flags
-
+- `-config` - Path to configuration file (default: `/etc/librato/config.json`)
 - `-daemon` - Enable daemon mode
-- `-watch-dir` - Directory to watch for new files (required in daemon mode)
-- `-quarantine-dir` - Directory for files without tags (required in daemon mode)
-- `-pid-file` - PID file path (default: `/var/run/librato.pid`)
-- `-state-file` - State file path (default: `/var/lib/librato/state.json`)
+- `-source` - Source directory to process in one-shot mode (default: current directory)
+- `-dry` - Dry run mode (no files moved)
 
 ## Examples
 
 ### Organize downloaded music
 
 ```bash
-librato -library ~/Music -source ~/Downloads/NewAlbums
+librato -config config.json -source ~/Downloads/NewAlbums
 ```
 
 ### Watch a download folder continuously
 
 ```bash
-librato -daemon \
-  -library ~/Music \
-  -watch-dir ~/Downloads/Music \
-  -quarantine-dir ~/Downloads/Untagged \
-  -log-level debug
-```
-
-### Custom patterns
-
-```bash
-librato \
-  -library ~/Music \
-  -source ~/Downloads \
-  -dir-pattern "{{year}}/{{artist}}/{{album}}" \
-  -file-pattern "{{track}}_{{title}}"
+librato -daemon -config config.daemon.json
 ```
 
 ## License
