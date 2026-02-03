@@ -5,80 +5,81 @@ import (
 	"flag"
 	"io"
 	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/pkazmierczak/librato/internal"
 )
 
-var (
-	// Existing flags
-	configFile   = flag.String("config", "config.json", "Path to the configuration file (optional)")
-	replacements = flag.String("replacements", "", "Path to the json file containing a map of replacements (legacy, prefer config file)")
-	dirPattern   = flag.String("dir-pattern", "", "Directory naming pattern (e.g., '{{artist}}-{{album}}')")
-	filePattern  = flag.String("file-pattern", "", "File naming pattern (e.g., '{{disc_prefix}}{{track}}-{{title}}')")
-	musicLib     = flag.String("library", "", "Path to the music library")
-	source       = flag.String("source", ".", "source directory, defaults to current dir")
-	dry          = flag.Bool("dry", false, "Dry run (no actual files moved)")
-	loglvl       = flag.String("log-level", "info", "The log level")
+const defaultConfigPath = "/etc/librato/config.json"
 
-	// New daemon-specific flags
-	daemon        = flag.Bool("daemon", false, "Run as background daemon")
-	watchDir      = flag.String("watch-dir", "", "Directory to watch (daemon mode)")
-	quarantineDir = flag.String("quarantine-dir", "", "Directory for untagged files (daemon mode)")
-	pidFile       = flag.String("pid-file", "/var/run/librato.pid", "PID file path (daemon mode)")
-	stateFile     = flag.String("state-file", "/var/lib/librato/state.json", "State file path (daemon mode)")
+var (
+	// Primary config flag
+	configFile = flag.String("config", defaultConfigPath, "Path to the configuration file")
+
+	// Mode flags
+	daemonMode = flag.Bool("daemon", false, "Run as background daemon")
+	source     = flag.String("source", ".", "Source directory for one-shot mode (defaults to current dir)")
+	dryRun     = flag.Bool("dry", false, "Dry run (no files moved)")
+
+	// Legacy flag (deprecated)
+	replacements = flag.String("replacements", "", "Path to the json file containing a map of replacements (deprecated, use config file)")
 )
 
 func main() {
 	flag.Parse()
 
-	if *musicLib == "" {
-		log.Fatal("must provide an absolute path to the music library")
-	}
+	// Load configuration from file
+	config := loadConfiguration()
 
-	// Setup logging
-	logLevel, err := log.ParseLevel(*loglvl)
+	// Setup logging based on config
+	logLevel, err := log.ParseLevel(config.LogLevel)
 	if err != nil {
 		logLevel = log.InfoLevel
-		log.Warnf("invalid log-level %s, set to %v", *loglvl, log.InfoLevel)
+		log.Warnf("invalid log_level %q in config, defaulting to info", config.LogLevel)
 	}
 	log.SetLevel(logLevel)
 
-	// Load configuration
-	config := loadConfiguration()
+	// Validate required config
+	if config.Library == "" {
+		log.Fatal("config: 'library' is required (path to the music library)")
+	}
 
 	log.Infof("using patterns: dir=%s, file=%s", config.Pattern.DirPattern, config.Pattern.FilePattern)
 
 	// Mode selection
-	if *daemon {
+	if *daemonMode {
 		runDaemon(config)
 	} else {
 		runOneShot(config)
 	}
 }
 
-// loadConfiguration loads and merges configuration from multiple sources
+// loadConfiguration loads configuration from the config file
 func loadConfiguration() internal.Config {
 	config := internal.DefaultConfig()
 
-	// Try to load config file if it exists
+	// Load config file
 	if *configFile != "" {
 		if _, err := os.Stat(*configFile); err == nil {
 			loadedConfig, err := internal.LoadConfig(*configFile)
 			if err != nil {
-				log.Warnf("failed to load config file %s: %v, using defaults", *configFile, err)
-			} else {
-				config = loadedConfig
-				log.Debugf("loaded config from %s", *configFile)
+				log.Fatalf("failed to load config file %s: %v", *configFile, err)
 			}
+			config = loadedConfig
+			log.Debugf("loaded config from %s", *configFile)
+		} else if *configFile != defaultConfigPath {
+			// Only fatal if a non-default config path was explicitly specified
+			log.Fatalf("config file not found: %s", *configFile)
 		} else {
-			log.Debugf("config file %s not found, using defaults", *configFile)
+			log.Debugf("default config file %s not found, using defaults", *configFile)
 		}
 	}
 
-	// Legacy: support old replacements.json file
+	// Legacy: support old replacements.json file (deprecated)
 	if *replacements != "" {
+		log.Warn("the -replacements flag is deprecated, use the config file instead")
 		replacementsFile, err := os.Open(*replacements)
 		if err != nil {
 			log.Fatalf("failed to read replacements file: %v", err)
@@ -92,22 +93,12 @@ func loadConfiguration() internal.Config {
 		log.Debugf("loaded replacements from %s", *replacements)
 	}
 
-	// CLI flags override config file
-	if *dirPattern != "" {
-		config.Pattern.DirPattern = *dirPattern
-		log.Debugf("using dir pattern from CLI: %s", *dirPattern)
-	}
-	if *filePattern != "" {
-		config.Pattern.FilePattern = *filePattern
-		log.Debugf("using file pattern from CLI: %s", *filePattern)
-	}
-
 	return config
 }
 
 // runOneShot runs the traditional one-shot processing mode
 func runOneShot(config internal.Config) {
-	processor := internal.NewProcessor(config, *musicLib, *dry, log.StandardLogger())
+	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger())
 
 	if err := processor.ProcessDirectory(*source); err != nil {
 		log.Fatalf("failed to process directory: %v", err)
@@ -118,27 +109,44 @@ func runOneShot(config internal.Config) {
 
 // runDaemon runs the background daemon mode
 func runDaemon(config internal.Config) {
-	// Validate daemon-specific requirements
-	if *watchDir == "" {
-		log.Fatal("daemon mode requires -watch-dir flag")
-	}
-	if *quarantineDir == "" {
-		log.Fatal("daemon mode requires -quarantine-dir flag")
+	// Validate daemon config exists
+	if config.Daemon == nil {
+		log.Fatal("daemon mode requires 'daemon' section in config file")
 	}
 
-	log.Infof("starting daemon mode: watching %s", *watchDir)
+	dc := config.Daemon
+	if dc.WatchDir == "" {
+		log.Fatal("config: daemon.watch_dir is required")
+	}
+	if dc.QuarantineDir == "" {
+		log.Fatal("config: daemon.quarantine_dir is required")
+	}
+
+	log.Infof("starting daemon mode: watching %s", dc.WatchDir)
 
 	// Create processor
-	processor := internal.NewProcessor(config, *musicLib, *dry, log.StandardLogger())
+	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger())
 
-	// Create daemon
+	// Parse debounce time
+	debounceTime := 2 * time.Second
+	if dc.DebounceTime != "" {
+		parsed, err := time.ParseDuration(dc.DebounceTime)
+		if err != nil {
+			log.Warnf("invalid debounce_time %q, using default 2s", dc.DebounceTime)
+		} else {
+			debounceTime = parsed
+		}
+	}
+
+	// Create daemon options from config
 	daemonOpts := DaemonOptions{
-		WatchDir:      *watchDir,
-		QuarantineDir: *quarantineDir,
-		PIDFile:       *pidFile,
-		StateFile:     *stateFile,
-		ScanOnStartup: true,
-		CleanupEmpty:  true,
+		WatchDir:      dc.WatchDir,
+		QuarantineDir: dc.QuarantineDir,
+		PIDFile:       dc.PIDFile,
+		StateFile:     dc.StateFile,
+		DebounceTime:  debounceTime,
+		ScanOnStartup: dc.ScanOnStartup,
+		CleanupEmpty:  dc.CleanupEmptyDirs,
 	}
 
 	daemon, err := NewDaemon(processor, daemonOpts)

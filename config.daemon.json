@@ -1,4 +1,6 @@
 {
+  "library": "/mnt/music",
+  "log_level": "info",
   "replacements": {
     "ą": "a",
     "ć": "c",

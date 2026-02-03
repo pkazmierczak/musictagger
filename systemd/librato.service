@@ -19,14 +19,8 @@ ReadWritePaths=/var/lib/librato /mnt/music /mnt/incoming
 WorkingDirectory=/var/lib/librato
 PIDFile=/var/run/librato/librato.pid
 
-# Command
-ExecStart=/usr/local/bin/librato \
-    -daemon \
-    -config /etc/librato/config.json \
-    -library /mnt/music \
-    -watch-dir /mnt/incoming/music \
-    -quarantine-dir /mnt/incoming/needs-tagging \
-    -log-level info
+# Command - all settings read from /etc/librato/config.json
+ExecStart=/usr/local/bin/librato -daemon
 
 # Restart policy
 Restart=on-failure

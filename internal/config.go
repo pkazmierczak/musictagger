@@ -8,9 +8,16 @@ import (
 
 // Config holds all configuration for librato
 type Config struct {
+	// Global settings
+	Library  string `json:"library"`   // Path to music library (required)
+	LogLevel string `json:"log_level"` // Logging level (debug, info, warn, error)
+
+	// Processing settings
 	Replacements map[string]string `json:"replacements"`
 	Pattern      Pattern           `json:"pattern"`
-	Daemon       *DaemonConfig     `json:"daemon,omitempty"`
+
+	// Daemon-specific settings
+	Daemon *DaemonConfig `json:"daemon,omitempty"`
 }
 
 // DaemonConfig holds daemon-specific configuration
@@ -27,6 +34,7 @@ type DaemonConfig struct {
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() Config {
 	return Config{
+		LogLevel:     "info",
 		Replacements: make(map[string]string),
 		Pattern:      DefaultPattern(),
 		Daemon:       nil, // Daemon config is optional
@@ -61,6 +69,20 @@ func LoadConfig(path string) (Config, error) {
 
 	if err := json.Unmarshal(b, &config); err != nil {
 		return config, err
+	}
+
+	// Merge daemon config with defaults if present
+	if config.Daemon != nil {
+		defaults := DefaultDaemonConfig()
+		if config.Daemon.DebounceTime == "" {
+			config.Daemon.DebounceTime = defaults.DebounceTime
+		}
+		if config.Daemon.StateFile == "" {
+			config.Daemon.StateFile = defaults.StateFile
+		}
+		if config.Daemon.PIDFile == "" {
+			config.Daemon.PIDFile = defaults.PIDFile
+		}
 	}
 
 	return config, nil

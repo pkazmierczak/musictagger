@@ -1,4 +1,6 @@
 {
+  "library": "/path/to/music/library",
+  "log_level": "info",
   "replacements": {
     "ą": "a",
     "æ": "ae",
