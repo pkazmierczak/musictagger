@@ -9,6 +9,9 @@ Source0:        librato
 Source1:        librato.service
 Source2:        config.daemon.json
 
+# Define systemd unit directory if not already defined
+%{!?_unitdir: %define _unitdir /usr/lib/systemd/system}
+
 %description
 Librato is a tool that automatically organizes your music library
 based on ID3 tags. It can run as a CLI tool or as a background daemon
@@ -42,7 +45,10 @@ getent group librato >/dev/null || groupadd -r librato
 getent passwd librato >/dev/null || useradd -r -g librato -d %{_sharedstatedir}/librato -s /sbin/nologin -c "Librato daemon" librato
 
 %post
-%systemd_post librato.service
+# Reload systemd and enable service
+if [ $1 -eq 1 ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || :
+fi
 
 # Copy example config if no config exists
 if [ ! -f %{_sysconfdir}/librato/config.json ]; then
@@ -57,10 +63,18 @@ chown librato:librato %{_sharedstatedir}/librato
 chown librato:librato %{_rundir}/librato
 
 %preun
-%systemd_preun librato.service
+# Stop service before uninstall
+if [ $1 -eq 0 ]; then
+    systemctl stop librato.service >/dev/null 2>&1 || :
+    systemctl disable librato.service >/dev/null 2>&1 || :
+fi
 
 %postun
-%systemd_postun_with_restart librato.service
+# Reload systemd after uninstall
+systemctl daemon-reload >/dev/null 2>&1 || :
+if [ $1 -ge 1 ]; then
+    systemctl try-restart librato.service >/dev/null 2>&1 || :
+fi
 
 %files
 %{_bindir}/librato
