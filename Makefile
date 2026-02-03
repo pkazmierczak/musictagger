@@ -23,3 +23,15 @@ install:
 deb: release
 	dpkg-buildpackage -us -uc -b
 	mv ../librato_*.deb .
+
+rpm: release
+	mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+	cp librato rpmbuild/SOURCES/
+	cp systemd/librato.service rpmbuild/SOURCES/
+	cp config.daemon.json rpmbuild/SOURCES/
+	rpmbuild -bb \
+		--define "_topdir $(PWD)/rpmbuild" \
+		--define "_version $(shell cat VERSION.txt | tr -d 'v')" \
+		--define "_sourcedir $(PWD)" \
+		rpm/librato.spec
+	mv rpmbuild/RPMS/*/*.rpm .
