@@ -6,6 +6,9 @@ on:
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
 
     steps:
       - name: Restore cache
@@ -25,13 +28,25 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Test
+        if: matrix.arch == 'amd64'
         run: go test -coverprofile=covprofile ./...
 
       - name: go vet
+        if: matrix.arch == 'amd64'
         run: go vet ./...
 
-      - name: Test build
-        run: make
+      - name: Build binary
+        run: CGO_ENABLED=0 GOARCH=${{ matrix.arch }} make release
+
+      - name: Get version
+        id: version
+        run: echo "version=$(cat VERSION.txt | tr -d 'v')" >> $GITHUB_OUTPUT
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: librato-binary-${{ matrix.arch }}
+          path: librato
 
   build_deb:
     runs-on: ubuntu-latest
@@ -39,50 +54,86 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-        include:
-          - arch: amd64
-            goarch: amd64
-          - arch: arm64
-            goarch: arm64
 
     steps:
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: "1.25.6"
-
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y debhelper devscripts build-essential
-
-      - name: Build binary
-        run: CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} make release
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: librato-binary-${{ matrix.arch }}
 
       - name: Get version
         id: version
         run: echo "version=$(cat VERSION.txt | tr -d 'v')" >> $GITHUB_OUTPUT
 
       - name: Build deb package
-        run: dpkg-buildpackage -us -uc -b -a${{ matrix.arch }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ARCH=${{ matrix.arch }}
+          PKG_DIR="librato_${VERSION}_${ARCH}"
 
-      - name: Move deb to workspace
-        run: mv ../librato_*.deb .
+          # Create package structure
+          mkdir -p "${PKG_DIR}/DEBIAN"
+          mkdir -p "${PKG_DIR}/usr/bin"
+          mkdir -p "${PKG_DIR}/lib/systemd/system"
+          mkdir -p "${PKG_DIR}/etc/librato"
+
+          # Install files
+          install -m 0755 librato "${PKG_DIR}/usr/bin/librato"
+          install -m 0644 systemd/librato.service "${PKG_DIR}/lib/systemd/system/librato.service"
+          install -m 0644 config.daemon.json "${PKG_DIR}/etc/librato/config.json.example"
+
+          # Create control file
+          cat > "${PKG_DIR}/DEBIAN/control" << EOF
+          Package: librato
+          Version: ${VERSION}
+          Architecture: ${ARCH}
+          Maintainer: Piotr Kazmierczak <phk@mm.st>
+          Description: Automatic music library organizer daemon
+           Librato is a tool that automatically organizes your music library
+           based on ID3 tags. It can run as a CLI tool or as a background daemon
+           that watches a directory for new music files and moves them to your
+           library using configurable patterns.
+          EOF
+
+          # Create postinst script
+          cat > "${PKG_DIR}/DEBIAN/postinst" << 'EOF'
+          #!/bin/sh
+          set -e
+          if ! getent passwd librato > /dev/null; then
+              adduser --system --group --no-create-home --home /var/lib/librato librato
+          fi
+          mkdir -p /var/lib/librato /var/run/librato /etc/librato
+          chown librato:librato /var/lib/librato /var/run/librato
+          if [ ! -f /etc/librato/config.json ] && [ -f /etc/librato/config.json.example ]; then
+              cp /etc/librato/config.json.example /etc/librato/config.json
+              chown librato:librato /etc/librato/config.json
+          fi
+          EOF
+          chmod 0755 "${PKG_DIR}/DEBIAN/postinst"
+
+          # Create postrm script
+          cat > "${PKG_DIR}/DEBIAN/postrm" << 'EOF'
+          #!/bin/sh
+          set -e
+          if [ "$1" = "purge" ]; then
+              deluser --system librato || true
+              delgroup --system librato || true
+              rm -rf /var/lib/librato /var/run/librato /etc/librato
+          fi
+          EOF
+          chmod 0755 "${PKG_DIR}/DEBIAN/postrm"
+
+          # Build the package
+          dpkg-deb --build "${PKG_DIR}"
 
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: librato-${{ steps.version.outputs.version }}-${{ matrix.arch }}.deb
-          path: librato_*.deb
+          path: librato_${{ steps.version.outputs.version }}_${{ matrix.arch }}.deb
 
   build_rpm:
     runs-on: ubuntu-latest
@@ -97,27 +148,16 @@ jobs:
             goarch: arm64
 
     steps:
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: "1.25.6"
-
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: librato-binary-${{ matrix.goarch }}
+
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y rpm
-
-      - name: Build binary
-        run: CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} make release
 
       - name: Get version
         id: version
