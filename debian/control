@@ -1,0 +1,26 @@
+Source: librato
+Section: sound
+Priority: optional
+Maintainer: Piotr Kazmierczak <phk@mm.st>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/pkazmierczak/librato
+Vcs-Git: https://github.com/pkazmierczak/librato.git
+Vcs-Browser: https://github.com/pkazmierczak/librato
+Rules-Requires-Root: no
+
+Package: librato
+Architecture: any
+Depends: ${misc:Depends}
+Description: Automatic music library organizer daemon
+ Librato is a tool that automatically organizes your music library
+ based on ID3 tags. It can run as a CLI tool or as a background daemon
+ that watches a directory for new music files and moves them to your
+ library using configurable patterns.
+ .
+ Features include:
+  - Organize music by artist, album, genre, and other ID3 tags
+  - Watch directory mode for automatic file processing
+  - Quarantine untagged files for manual review
+  - Systemd service integration
+  - Dry-run mode for previewing changes

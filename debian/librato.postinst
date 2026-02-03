@@ -1,0 +1,33 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create system user if it doesn't exist
+        if ! getent passwd librato > /dev/null; then
+            adduser --system --group --no-create-home --home /var/lib/librato librato
+        fi
+
+        # Create required directories
+        mkdir -p /var/lib/librato
+        mkdir -p /var/run/librato
+        mkdir -p /etc/librato
+
+        # Set ownership
+        chown librato:librato /var/lib/librato
+        chown librato:librato /var/run/librato
+
+        # Copy example config if no config exists
+        if [ ! -f /etc/librato/config.json ]; then
+            if [ -f /etc/librato/config.json.example ]; then
+                echo "No config found, copying example to /etc/librato/config.json"
+                cp /etc/librato/config.json.example /etc/librato/config.json
+                chown librato:librato /etc/librato/config.json
+            fi
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

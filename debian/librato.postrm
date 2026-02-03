@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Remove user and group
+        if getent passwd librato > /dev/null; then
+            deluser --system librato || true
+        fi
+        if getent group librato > /dev/null; then
+            delgroup --system librato || true
+        fi
+
+        # Remove state directories
+        rm -rf /var/lib/librato
+        rm -rf /var/run/librato
+        rm -rf /etc/librato
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

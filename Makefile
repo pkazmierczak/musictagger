@@ -16,5 +16,10 @@ GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
 
 release:
 	CGO_ENABLED=0 go build ${GO_LDFLAGS} -o librato ./cmd/librato
+
 install:
 	cp librato /usr/local/bin
+
+deb: release
+	dpkg-buildpackage -us -uc -b
+	mv ../librato_*.deb .

@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Binary is pre-built in CI, nothing to do here
+
+override_dh_auto_install:
+	# Install binary
+	install -D -m 0755 librato debian/librato/usr/bin/librato
+	# Install systemd service
+	install -D -m 0644 systemd/librato.service debian/librato/lib/systemd/system/librato.service
+	# Install example config
+	install -D -m 0644 config.daemon.json debian/librato/etc/librato/config.json.example
+
+override_dh_auto_test:
+	# Tests run separately in CI
