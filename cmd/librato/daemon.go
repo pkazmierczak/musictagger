@@ -15,10 +15,12 @@ import (
 
 // Daemon manages the background service lifecycle
 type Daemon struct {
-	processor  *internal.Processor
-	watcher    *Watcher
-	state      *internal.DaemonState
-	pidFile    string
+	processor *internal.Processor
+	watcher   *Watcher
+	state     *internal.DaemonState
+
+	pidFile string
+
 	shutdownCh chan os.Signal
 }
 

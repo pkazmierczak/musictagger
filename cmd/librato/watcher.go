@@ -15,16 +15,19 @@ import (
 
 // Watcher monitors a directory for new music files
 type Watcher struct {
-	fsWatcher     *fsnotify.Watcher
 	watchDir      string
 	quarantineDir string
-	processor     *internal.Processor
-	state         *internal.DaemonState
 	debounceTime  time.Duration
-	pendingFiles  map[string]*FileEvent
-	pendingMutex  sync.RWMutex
-	stopCh        chan struct{}
-	doneCh        chan struct{}
+
+	fsWatcher *fsnotify.Watcher
+	processor *internal.Processor
+	state     *internal.DaemonState
+
+	pendingFiles map[string]*FileEvent
+	pendingMutex sync.RWMutex
+
+	stopCh chan struct{}
+	doneCh chan struct{}
 }
 
 // FileEvent represents a pending file to process
