@@ -1,5 +1,7 @@
 # librato
 
+[![Build](https://github.com/pkazmierczak/librato/actions/workflows/go.yml/badge.svg)](https://github.com/pkazmierczak/librato/actions/workflows/go.yml)
+
 A music file organizer that uses ID3 tags to automatically organize your music library. Can run as a one-shot CLI tool or as a background daemon service.
 
 ## Features
