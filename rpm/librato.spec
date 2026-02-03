@@ -12,6 +12,10 @@ Source2:        config.daemon.json
 # Define systemd unit directory if not already defined
 %{!?_unitdir: %define _unitdir /usr/lib/systemd/system}
 
+# Disable stripping - binary is pre-built and may be cross-compiled
+%define __strip /bin/true
+%define debug_package %{nil}
+
 %description
 Librato is a tool that automatically organizes your music library
 based on ID3 tags. It can run as a CLI tool or as a background daemon
