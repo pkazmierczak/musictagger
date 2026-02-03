@@ -36,6 +36,14 @@ jobs:
   build_deb:
     runs-on: ubuntu-latest
     needs: build_and_test
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            goarch: amd64
+          - arch: arm64
+            goarch: arm64
 
     steps:
       - name: Restore cache
@@ -58,14 +66,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y debhelper devscripts build-essential
 
       - name: Build binary
-        run: make release
+        run: CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} make release
 
       - name: Get version
         id: version
         run: echo "version=$(cat VERSION.txt | tr -d 'v')" >> $GITHUB_OUTPUT
 
       - name: Build deb package
-        run: dpkg-buildpackage -us -uc -b
+        run: dpkg-buildpackage -us -uc -b -a${{ matrix.arch }}
 
       - name: Move deb to workspace
         run: mv ../librato_*.deb .
@@ -73,12 +81,20 @@ jobs:
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librato-${{ steps.version.outputs.version }}-amd64.deb
+          name: librato-${{ steps.version.outputs.version }}-${{ matrix.arch }}.deb
           path: librato_*.deb
 
   build_rpm:
     runs-on: ubuntu-latest
     needs: build_and_test
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            goarch: amd64
+          - arch: aarch64
+            goarch: arm64
 
     steps:
       - name: Restore cache
@@ -101,7 +117,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y rpm
 
       - name: Build binary
-        run: make release
+        run: CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} make release
 
       - name: Get version
         id: version
@@ -116,11 +132,12 @@ jobs:
           rpmbuild -bb \
             --define "_topdir $(pwd)/rpmbuild" \
             --define "_version ${{ steps.version.outputs.version }}" \
-            --define "_sourcedir $(pwd)" \
+            --define "_sourcedir $(pwd)/rpmbuild/SOURCES" \
+            --target ${{ matrix.arch }} \
             rpm/librato.spec
 
       - name: Upload rpm artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librato-${{ steps.version.outputs.version }}-x86_64.rpm
+          name: librato-${{ steps.version.outputs.version }}-${{ matrix.arch }}.rpm
           path: rpmbuild/RPMS/**/*.rpm
