@@ -25,6 +25,7 @@ type Processor struct {
 	musicLibrary string
 	dryRun       bool
 	logger       *log.Logger
+	coverFetcher *CoverFetcher
 }
 
 // ProcessorOptions configures the Processor
@@ -34,12 +35,13 @@ type ProcessorOptions struct {
 }
 
 // NewProcessor creates a new Processor instance
-func NewProcessor(config Config, musicLibrary string, dryRun bool, logger *log.Logger) *Processor {
+func NewProcessor(config Config, musicLibrary string, dryRun bool, logger *log.Logger, coverFetcher *CoverFetcher) *Processor {
 	return &Processor{
 		config:       config,
 		musicLibrary: musicLibrary,
 		dryRun:       dryRun,
 		logger:       logger,
+		coverFetcher: coverFetcher,
 	}
 }
 
@@ -80,33 +82,50 @@ func (p *Processor) ProcessDirectory(sourceDir string) error {
 			}
 		}
 
-		if originalDir == newDir {
-			continue
+		// Copy any other files in the directory (only if moving to a new location)
+		if originalDir != newDir {
+			if err := filepath.WalkDir(originalDir, func(s string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if !d.IsDir() {
+					p.logger.Infof("renaming %s to %s\n", filepath.Join(
+						originalDir, d.Name()),
+						filepath.Join(newDir, d.Name()),
+					)
+					if p.dryRun {
+						return nil
+					}
+					if err := os.Rename(
+						filepath.Join(originalDir, d.Name()),
+						filepath.Join(newDir, d.Name()),
+					); err != nil {
+						p.logger.Warn(err)
+					}
+				}
+				return nil
+			}); err != nil {
+				p.logger.Warn(err)
+			}
 		}
 
-		// Copy any other files in the directory
-		if err := filepath.WalkDir(originalDir, func(s string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !d.IsDir() {
-				p.logger.Infof("renaming %s to %s\n", filepath.Join(
-					originalDir, d.Name()),
-					filepath.Join(newDir, d.Name()),
-				)
-				if p.dryRun {
-					return nil
+		// Fetch cover art if enabled and not in dry-run mode
+		// This runs for all album directories, regardless of whether files were moved
+		targetDir := newDir
+		if targetDir == "" {
+			targetDir = originalDir
+		}
+		if p.coverFetcher != nil && targetDir != "" && !p.dryRun {
+			if len(music) > 0 {
+				artist := music[0].Metadata.AlbumArtist()
+				if artist == "" {
+					artist = music[0].Metadata.Artist()
 				}
-				if err := os.Rename(
-					filepath.Join(originalDir, d.Name()),
-					filepath.Join(newDir, d.Name()),
-				); err != nil {
-					p.logger.Warn(err)
+				album := music[0].Metadata.Album()
+				if err := p.coverFetcher.FetchCover(targetDir, artist, album); err != nil {
+					p.logger.Warnf("failed to fetch cover for %s: %v", targetDir, err)
 				}
 			}
-			return nil
-		}); err != nil {
-			p.logger.Warn(err)
 		}
 	}
 

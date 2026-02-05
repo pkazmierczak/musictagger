@@ -98,7 +98,13 @@ func loadConfiguration() internal.Config {
 
 // runOneShot runs the traditional one-shot processing mode
 func runOneShot(config internal.Config) {
-	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger())
+	var coverFetcher *internal.CoverFetcher
+	if config.FetchCovers {
+		coverFetcher = internal.NewCoverFetcher(log.StandardLogger())
+		log.Info("cover art fetching enabled")
+	}
+
+	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger(), coverFetcher)
 
 	if err := processor.ProcessDirectory(*source); err != nil {
 		log.Fatalf("failed to process directory: %v", err)
@@ -124,8 +130,15 @@ func runDaemon(config internal.Config) {
 
 	log.Infof("starting daemon mode: watching %s", dc.WatchDir)
 
+	// Create cover fetcher if enabled
+	var coverFetcher *internal.CoverFetcher
+	if config.FetchCovers {
+		coverFetcher = internal.NewCoverFetcher(log.StandardLogger())
+		log.Info("cover art fetching enabled")
+	}
+
 	// Create processor
-	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger())
+	processor := internal.NewProcessor(config, config.Library, *dryRun, log.StandardLogger(), coverFetcher)
 
 	// Parse debounce time
 	debounceTime := 2 * time.Second

@@ -9,6 +9,7 @@ A music file organizer that uses ID3 tags to automatically organize your music l
 - **Pattern-based organization**: Use customizable templates to organize files by artist, album, track number, etc.
 - **One-shot mode**: Process an entire directory at once (traditional CLI behavior)
 - **Daemon mode**: Run as a background service that watches a directory for new files
+- **Cover art fetching**: Optionally download missing album covers from MusicBrainz/Cover Art Archive
 - **Quarantine for untagged files**: Files without metadata are moved to a separate directory
 - **State persistence**: Daemon mode tracks processed files to avoid duplicates
 - **Systemd integration**: Easy deployment as a Linux service
@@ -94,6 +95,7 @@ Create a `config.json` file to customize behavior. The default location is `/etc
 {
   "library": "/path/to/music/library",
   "log_level": "info",
+  "fetch_covers": false,
   "replacements": {
     "ą": "a",
     " ": "_",
@@ -147,6 +149,17 @@ Available template variables:
 - `{{genre}}` - Genre
 
 See [PATTERNS.md](PATTERNS.md) for more details.
+
+### Cover Art Fetching
+
+When `fetch_covers` is enabled, librato will automatically download missing album artwork:
+
+- Checks each album directory for existing `cover.jpg`, `cover.jpeg`, or `cover.png`
+- If no cover exists, searches [MusicBrainz](https://musicbrainz.org/) using artist and album metadata
+- Downloads the front cover from [Cover Art Archive](https://coverartarchive.org/)
+- Saves the image in its original format (JPEG or PNG)
+
+This feature is disabled by default. To enable it, add `"fetch_covers": true` to your config file.
 
 ## CLI Flags
 

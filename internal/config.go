@@ -15,6 +15,7 @@ type Config struct {
 	// Processing settings
 	Replacements map[string]string `json:"replacements"`
 	Pattern      Pattern           `json:"pattern"`
+	FetchCovers  bool              `json:"fetch_covers"` // Whether to fetch missing cover art from MusicBrainz
 
 	// Daemon-specific settings
 	Daemon *DaemonConfig `json:"daemon,omitempty"`
