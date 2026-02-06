@@ -7,10 +7,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/dhowden/tag"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 // Music represents a music file with metadata
@@ -53,78 +56,89 @@ func (p *Processor) ProcessDirectory(sourceDir string) error {
 		return fmt.Errorf("failed to scan directory: %w", err)
 	}
 
+	g := new(errgroup.Group)
+	g.SetLimit(runtime.NumCPU())
+
 	for originalDir, music := range musicLibrary {
-		var newDir string
-		for _, m := range music {
-			computedPath := p.config.Pattern.FormatPath(m.Metadata, m.Path, p.config.Replacements)
-			newDir = filepath.Dir(filepath.Join(p.musicLibrary, computedPath))
-			newPath := filepath.Join(p.musicLibrary, computedPath)
+		g.Go(func() error {
+			return p.processAlbumDir(originalDir, music)
+		})
+	}
 
-			if m.Path == newPath {
-				continue
-			}
+	return g.Wait()
+}
 
-			p.logger.Infof("renaming %s to %s\n", m.Path, filepath.Join(p.musicLibrary, computedPath))
+// processAlbumDir processes a single album directory: moves music files,
+// copies remaining files, and fetches cover art.
+func (p *Processor) processAlbumDir(originalDir string, music []Music) error {
+	var newDir string
+	for _, m := range music {
+		computedPath := p.config.Pattern.FormatPath(m.Metadata, m.Path, p.config.Replacements)
+		newDir = filepath.Dir(filepath.Join(p.musicLibrary, computedPath))
+		newPath := filepath.Join(p.musicLibrary, computedPath)
 
-			if p.dryRun {
-				continue
-			}
+		if m.Path == newPath {
+			continue
+		}
 
-			if _, err := os.Stat(newDir); os.IsNotExist(err) {
-				err := os.MkdirAll(newDir, 0755)
-				if err != nil {
-					return fmt.Errorf("failed to create directory %s: %w", newDir, err)
-				}
-			}
+		p.logger.Infof("renaming %s to %s\n", m.Path, filepath.Join(p.musicLibrary, computedPath))
 
-			if err := os.Rename(m.Path, newPath); err != nil {
-				p.logger.Warn(err)
+		if p.dryRun {
+			continue
+		}
+
+		if _, err := os.Stat(newDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(newDir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", newDir, err)
 			}
 		}
 
-		// Copy any other files in the directory (only if moving to a new location)
-		if originalDir != newDir {
-			if err := filepath.WalkDir(originalDir, func(s string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if !d.IsDir() {
-					p.logger.Infof("renaming %s to %s\n", filepath.Join(
-						originalDir, d.Name()),
-						filepath.Join(newDir, d.Name()),
-					)
-					if p.dryRun {
-						return nil
-					}
-					if err := os.Rename(
-						filepath.Join(originalDir, d.Name()),
-						filepath.Join(newDir, d.Name()),
-					); err != nil {
-						p.logger.Warn(err)
-					}
-				}
-				return nil
-			}); err != nil {
-				p.logger.Warn(err)
-			}
+		if err := os.Rename(m.Path, newPath); err != nil {
+			p.logger.Warn(err)
 		}
+	}
 
-		// Fetch cover art if enabled and not in dry-run mode
-		// This runs for all album directories, regardless of whether files were moved
-		targetDir := newDir
-		if targetDir == "" {
-			targetDir = originalDir
+	// Copy any other files in the directory (only if moving to a new location)
+	if originalDir != newDir {
+		if err := filepath.WalkDir(originalDir, func(s string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() {
+				p.logger.Infof("renaming %s to %s\n", filepath.Join(
+					originalDir, d.Name()),
+					filepath.Join(newDir, d.Name()),
+				)
+				if p.dryRun {
+					return nil
+				}
+				if err := os.Rename(
+					filepath.Join(originalDir, d.Name()),
+					filepath.Join(newDir, d.Name()),
+				); err != nil {
+					p.logger.Warn(err)
+				}
+			}
+			return nil
+		}); err != nil {
+			p.logger.Warn(err)
 		}
-		if p.coverFetcher != nil && targetDir != "" && !p.dryRun {
-			if len(music) > 0 {
-				artist := music[0].Metadata.AlbumArtist()
-				if artist == "" {
-					artist = music[0].Metadata.Artist()
-				}
-				album := music[0].Metadata.Album()
-				if err := p.coverFetcher.FetchCover(targetDir, artist, album); err != nil {
-					p.logger.Warnf("failed to fetch cover for %s: %v", targetDir, err)
-				}
+	}
+
+	// Fetch cover art if enabled and not in dry-run mode
+	targetDir := newDir
+	if targetDir == "" {
+		targetDir = originalDir
+	}
+	if p.coverFetcher != nil && targetDir != "" && !p.dryRun {
+		if len(music) > 0 {
+			artist := music[0].Metadata.AlbumArtist()
+			if artist == "" {
+				artist = music[0].Metadata.Artist()
+			}
+			album := music[0].Metadata.Album()
+			if err := p.coverFetcher.FetchCover(targetDir, artist, album); err != nil {
+				p.logger.Warnf("failed to fetch cover for %s: %v", targetDir, err)
 			}
 		}
 	}
@@ -247,14 +261,31 @@ func ComputeFileHash(filePath string) (string, error) {
 
 // getAllTags traverses a given directory recursively and extracts all tags it
 // can find. It returns a map of album directory to music files.
+// Files are read concurrently to speed up metadata extraction.
 func getAllTags(dir string) (map[string][]Music, error) {
-	tags := map[string][]Music{}
+	// Phase 1: collect all file paths
+	var files []string
 	if err := filepath.WalkDir(dir, func(s string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if !d.IsDir() {
-			f, err := os.Open(s)
+			files = append(files, s)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Phase 2: read metadata concurrently
+	var mu sync.Mutex
+	tags := map[string][]Music{}
+	g := new(errgroup.Group)
+	g.SetLimit(runtime.NumCPU())
+
+	for _, file := range files {
+		g.Go(func() error {
+			f, err := os.Open(file)
 			if err != nil {
 				return err
 			}
@@ -262,13 +293,16 @@ func getAllTags(dir string) (map[string][]Music, error) {
 
 			m, _ := tag.ReadFrom(f)
 			if m != nil {
-				tags[filepath.Dir(s)] = append(tags[filepath.Dir(s)], Music{s, m})
+				mu.Lock()
+				tags[filepath.Dir(file)] = append(tags[filepath.Dir(file)], Music{file, m})
+				mu.Unlock()
 			}
-		}
-		return nil
-	}); err != nil {
-		return tags, err
+			return nil
+		})
 	}
 
+	if err := g.Wait(); err != nil {
+		return tags, err
+	}
 	return tags, nil
 }

@@ -7,6 +7,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/shoenig/test v1.12.2
 	github.com/sirupsen/logrus v1.9.4
+	golang.org/x/sync v0.19.0
 )
 
 require (
