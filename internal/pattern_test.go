@@ -126,7 +126,7 @@ func TestBuildContext(t *testing.T) {
 		genre:       "Rock",
 	}
 
-	context := buildContext(metadata, "/test/path.flac")
+	context := buildContext(metadata)
 
 	tests := []struct {
 		key   string
@@ -164,7 +164,7 @@ func TestBuildContext_SingleDisc(t *testing.T) {
 		title:  "Test Title",
 	}
 
-	context := buildContext(metadata, "/test/path.flac")
+	context := buildContext(metadata)
 
 	must.Eq(t, "", context["disc_prefix"])
 }

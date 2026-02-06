@@ -30,7 +30,7 @@ func (p Pattern) FormatPath(metadata tag.Metadata, originalPath string, replacem
 	}
 
 	// Build context from metadata
-	context := buildContext(metadata, originalPath)
+	context := buildContext(metadata)
 
 	// Format directory and file
 	dir := formatTemplate(p.DirPattern, context)
@@ -60,7 +60,7 @@ func (p Pattern) FormatPath(metadata tag.Metadata, originalPath string, replacem
 }
 
 // buildContext creates a map of available template variables from metadata
-func buildContext(metadata tag.Metadata, originalPath string) map[string]string {
+func buildContext(metadata tag.Metadata) map[string]string {
 	track, totalTracks := metadata.Track()
 	disc, totalDiscs := metadata.Disc()
 

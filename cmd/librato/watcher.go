@@ -18,6 +18,7 @@ type Watcher struct {
 	watchDir      string
 	quarantineDir string
 	debounceTime  time.Duration
+	cleanupEmpty  bool
 
 	fsWatcher *fsnotify.Watcher
 	processor *internal.Processor
@@ -63,6 +64,7 @@ func NewWatcher(processor *internal.Processor, state *internal.DaemonState, opts
 		processor:     processor,
 		state:         state,
 		debounceTime:  opts.DebounceTime,
+		cleanupEmpty:  opts.CleanupEmpty,
 		pendingFiles:  make(map[string]*FileEvent),
 		stopCh:        make(chan struct{}),
 		doneCh:        make(chan struct{}),
@@ -199,7 +201,7 @@ func (w *Watcher) processFile(filePath string) {
 	// Process the file
 	opts := internal.ProcessorOptions{
 		QuarantineDir:    w.quarantineDir,
-		CleanupEmptyDirs: true,
+		CleanupEmptyDirs: w.cleanupEmpty,
 	}
 
 	targetPath := ""

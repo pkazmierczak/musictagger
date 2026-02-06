@@ -19,7 +19,8 @@ type Daemon struct {
 	watcher   *Watcher
 	state     *internal.DaemonState
 
-	pidFile string
+	pidFile       string
+	scanOnStartup bool
 
 	shutdownCh chan os.Signal
 }
@@ -73,11 +74,12 @@ func NewDaemon(processor *internal.Processor, opts DaemonOptions) (*Daemon, erro
 	}
 
 	d := &Daemon{
-		processor:  processor,
-		watcher:    watcher,
-		state:      state,
-		pidFile:    opts.PIDFile,
-		shutdownCh: make(chan os.Signal, 1),
+		processor:     processor,
+		watcher:       watcher,
+		state:         state,
+		pidFile:       opts.PIDFile,
+		scanOnStartup: opts.ScanOnStartup,
+		shutdownCh:    make(chan os.Signal, 1),
 	}
 
 	return d, nil
@@ -101,8 +103,10 @@ func (d *Daemon) Start() error {
 	}
 
 	// Scan existing files on startup
-	if err := d.watcher.ScanExisting(); err != nil {
-		log.Warnf("failed to scan existing files: %v", err)
+	if d.scanOnStartup {
+		if err := d.watcher.ScanExisting(); err != nil {
+			log.Warnf("failed to scan existing files: %v", err)
+		}
 	}
 
 	log.Info("daemon started successfully")
