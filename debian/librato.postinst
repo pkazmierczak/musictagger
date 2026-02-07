@@ -3,15 +3,16 @@ set -e
 
 case "$1" in
     configure)
+        # Create required directories before user creation so adduser
+        # can validate the home directory path
+        mkdir -p /var/lib/librato
+        mkdir -p /var/run/librato
+        mkdir -p /etc/librato
+
         # Create system user if it doesn't exist
         if ! getent passwd librato > /dev/null; then
             adduser --system --group --no-create-home --home /var/lib/librato librato
         fi
-
-        # Create required directories
-        mkdir -p /var/lib/librato
-        mkdir -p /var/run/librato
-        mkdir -p /etc/librato
 
         # Set ownership
         chown librato:librato /var/lib/librato
