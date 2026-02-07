@@ -156,11 +156,17 @@ func (p *Processor) ProcessFile(filePath string, opts ProcessorOptions) error {
 
 	metadata, err := tag.ReadFrom(f)
 	if err != nil || metadata == nil {
-		// No metadata - handle quarantine if enabled
-		if opts.QuarantineDir != "" {
-			return p.quarantineFile(filePath, opts.QuarantineDir)
+		// No metadata — this is a companion file (PDF, image, etc.)
+		// Try to move it alongside sibling music files
+		targetDir, dirErr := p.resolveTargetDir(filePath)
+		if dirErr != nil || targetDir == "" {
+			// No sibling music files found — quarantine or error
+			if opts.QuarantineDir != "" {
+				return p.quarantineFile(filePath, opts.QuarantineDir)
+			}
+			return fmt.Errorf("no metadata found in file %s and no sibling music files", filePath)
 		}
-		return fmt.Errorf("no metadata found in file %s", filePath)
+		return p.moveCompanionFile(filePath, targetDir)
 	}
 
 	// Compute target path
@@ -208,6 +214,64 @@ func (p *Processor) ProcessFile(filePath string, opts ProcessorOptions) error {
 		if err := p.cleanupEmptyDir(sourceDir, opts.WatchDir); err != nil {
 			p.logger.Warnf("failed to cleanup directory %s: %v", sourceDir, err)
 		}
+	}
+
+	return nil
+}
+
+// resolveTargetDir looks at sibling files in the same directory to determine
+// the target library directory. It reads metadata from the first sibling music
+// file it finds and computes the target directory from it.
+func (p *Processor) resolveTargetDir(filePath string) (string, error) {
+	sourceDir := filepath.Dir(filePath)
+	entries, err := os.ReadDir(sourceDir)
+	if err != nil {
+		return "", err
+	}
+
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == filepath.Base(filePath) {
+			continue
+		}
+		siblingPath := filepath.Join(sourceDir, e.Name())
+		f, err := os.Open(siblingPath)
+		if err != nil {
+			continue
+		}
+		m, err := tag.ReadFrom(f)
+		f.Close()
+		if err != nil || m == nil {
+			continue
+		}
+		computedPath := p.config.Pattern.FormatPath(m, siblingPath, p.config.Replacements)
+		return filepath.Dir(filepath.Join(p.musicLibrary, computedPath)), nil
+	}
+
+	return "", nil
+}
+
+// moveCompanionFile moves a non-music file to the given target directory,
+// preserving its original filename.
+func (p *Processor) moveCompanionFile(filePath, targetDir string) error {
+	targetPath := filepath.Join(targetDir, filepath.Base(filePath))
+
+	if filePath == targetPath {
+		p.logger.Debugf("companion file %s already in correct location", filePath)
+		return nil
+	}
+
+	p.logger.Infof("moving companion file %s -> %s", filePath, targetPath)
+
+	if p.dryRun {
+		return nil
+	}
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", targetDir, err)
+	}
+
+	if err := os.Rename(filePath, targetPath); err != nil {
+		return fmt.Errorf("failed to move companion file: %w", err)
 	}
 
 	return nil
