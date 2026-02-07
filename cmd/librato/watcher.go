@@ -80,12 +80,23 @@ func (w *Watcher) Start() error {
 		return fmt.Errorf("watch directory does not exist: %w", err)
 	}
 
-	// Add watch directory
-	if err := w.fsWatcher.Add(w.watchDir); err != nil {
-		return fmt.Errorf("failed to watch directory: %w", err)
+	// Recursively add watch directory and all subdirectories
+	if err := filepath.WalkDir(w.watchDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if err := w.fsWatcher.Add(path); err != nil {
+				return fmt.Errorf("failed to watch directory %s: %w", path, err)
+			}
+			log.Debugf("watching directory: %s", path)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to set up watches: %w", err)
 	}
 
-	log.Infof("watching directory: %s", w.watchDir)
+	log.Infof("watching directory: %s (recursive)", w.watchDir)
 
 	// Start event loop in goroutine
 	go w.eventLoop()
@@ -125,13 +136,20 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 		return
 	}
 
-	// Ignore directories
 	info, err := os.Stat(event.Name)
 	if err != nil {
 		log.Debugf("failed to stat %s: %v", event.Name, err)
 		return
 	}
+
+	// New directory: add it to the watcher and scan its files
 	if info.IsDir() {
+		if err := w.fsWatcher.Add(event.Name); err != nil {
+			log.Warnf("failed to watch new directory %s: %v", event.Name, err)
+			return
+		}
+		log.Debugf("watching new directory: %s", event.Name)
+		w.scanDir(event.Name)
 		return
 	}
 
@@ -139,6 +157,29 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 
 	// Apply debouncing
 	w.debounceFile(event.Name)
+}
+
+// scanDir scans a directory for files and debounces each one for processing.
+// Used when a new subdirectory appears in the watch tree.
+func (w *Watcher) scanDir(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Warnf("failed to read new directory %s: %v", dir, err)
+		return
+	}
+	for _, e := range entries {
+		path := filepath.Join(dir, e.Name())
+		if e.IsDir() {
+			if err := w.fsWatcher.Add(path); err != nil {
+				log.Warnf("failed to watch new directory %s: %v", path, err)
+				continue
+			}
+			log.Debugf("watching new directory: %s", path)
+			w.scanDir(path)
+		} else {
+			w.debounceFile(path)
+		}
+	}
 }
 
 // debounceFile implements debouncing for file events
@@ -202,6 +243,7 @@ func (w *Watcher) processFile(filePath string) {
 	opts := internal.ProcessorOptions{
 		QuarantineDir:    w.quarantineDir,
 		CleanupEmptyDirs: w.cleanupEmpty,
+		WatchDir:         w.watchDir,
 	}
 
 	targetPath := ""

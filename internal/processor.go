@@ -35,6 +35,7 @@ type Processor struct {
 type ProcessorOptions struct {
 	QuarantineDir    string
 	CleanupEmptyDirs bool
+	WatchDir         string
 }
 
 // NewProcessor creates a new Processor instance
@@ -194,7 +195,7 @@ func (p *Processor) ProcessFile(filePath string, opts ProcessorOptions) error {
 	// Cleanup empty source directory if enabled
 	if opts.CleanupEmptyDirs {
 		sourceDir := filepath.Dir(filePath)
-		if err := p.cleanupEmptyDir(sourceDir); err != nil {
+		if err := p.cleanupEmptyDir(sourceDir, opts.WatchDir); err != nil {
 			p.logger.Warnf("failed to cleanup directory %s: %v", sourceDir, err)
 		}
 	}
@@ -227,8 +228,26 @@ func (p *Processor) quarantineFile(filePath, quarantineDir string) error {
 	return nil
 }
 
-// cleanupEmptyDir removes a directory if it's empty
-func (p *Processor) cleanupEmptyDir(dir string) error {
+// cleanupEmptyDir removes a directory if it's empty, but never removes the
+// root watch directory itself (to prevent accidental deletion when loose files
+// are placed directly in the watch directory).
+func (p *Processor) cleanupEmptyDir(dir string, rootDir string) error {
+	// Never remove the root watch directory
+	if rootDir != "" {
+		cleanDir, err := filepath.Abs(dir)
+		if err != nil {
+			return err
+		}
+		cleanRoot, err := filepath.Abs(rootDir)
+		if err != nil {
+			return err
+		}
+		if cleanDir == cleanRoot {
+			p.logger.Debugf("skipping removal of root watch directory %s", dir)
+			return nil
+		}
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
