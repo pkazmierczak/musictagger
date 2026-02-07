@@ -8,22 +8,26 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	musicBrainzBaseURL    = "https://musicbrainz.org/ws/2"
-	coverArtArchiveURL    = "https://coverartarchive.org"
-	userAgent             = "librato/1.0 (https://github.com/pkazmierczak/librato)"
-	defaultRequestTimeout = 30 * time.Second
+	defaultMusicBrainzBaseURL = "https://musicbrainz.org/ws/2"
+	defaultCoverArtArchiveURL = "https://coverartarchive.org"
+	userAgent                 = "librato/1.0 (https://github.com/pkazmierczak/librato)"
+	defaultRequestTimeout     = 30 * time.Second
 )
 
 // CoverFetcher handles downloading album artwork from MusicBrainz/Cover Art Archive
 type CoverFetcher struct {
-	client *http.Client
-	logger *log.Logger
+	client             *http.Client
+	logger             *log.Logger
+	musicBrainzBaseURL string
+	coverArtArchiveURL string
+	fetched            sync.Map // tracks directories where a cover fetch has been attempted
 }
 
 // NewCoverFetcher creates a new CoverFetcher instance
@@ -32,7 +36,9 @@ func NewCoverFetcher(logger *log.Logger) *CoverFetcher {
 		client: &http.Client{
 			Timeout: defaultRequestTimeout,
 		},
-		logger: logger,
+		logger:             logger,
+		musicBrainzBaseURL: defaultMusicBrainzBaseURL,
+		coverArtArchiveURL: defaultCoverArtArchiveURL,
 	}
 }
 
@@ -40,6 +46,12 @@ func NewCoverFetcher(logger *log.Logger) *CoverFetcher {
 // It checks for existing cover.jpg or cover.png files first.
 // Returns nil if cover already exists, was successfully fetched, or couldn't be found.
 func (c *CoverFetcher) FetchCover(targetDir, artist, album string) error {
+	// Ensure only one fetch is attempted per target directory
+	if _, loaded := c.fetched.LoadOrStore(targetDir, struct{}{}); loaded {
+		c.logger.Debugf("cover fetch already attempted for %s, skipping", targetDir)
+		return nil
+	}
+
 	if c.coverExists(targetDir) {
 		c.logger.Debugf("cover already exists in %s, skipping", targetDir)
 		return nil
@@ -105,7 +117,7 @@ type musicBrainzSearchResponse struct {
 func (c *CoverFetcher) searchMusicBrainz(artist, album string) (string, error) {
 	query := fmt.Sprintf(`artist:"%s" AND release:"%s"`, artist, album)
 	searchURL := fmt.Sprintf("%s/release?query=%s&fmt=json&limit=1",
-		musicBrainzBaseURL, url.QueryEscape(query))
+		c.musicBrainzBaseURL, url.QueryEscape(query))
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
@@ -138,7 +150,7 @@ func (c *CoverFetcher) searchMusicBrainz(artist, album string) (string, error) {
 // fetchCoverArt fetches the front cover from Cover Art Archive
 // Returns the image data, content type, and any error
 func (c *CoverFetcher) fetchCoverArt(mbid string) ([]byte, string, error) {
-	coverURL := fmt.Sprintf("%s/release/%s/front", coverArtArchiveURL, mbid)
+	coverURL := fmt.Sprintf("%s/release/%s/front", c.coverArtArchiveURL, mbid)
 
 	req, err := http.NewRequest("GET", coverURL, nil)
 	if err != nil {
