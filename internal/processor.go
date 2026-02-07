@@ -190,6 +190,18 @@ func (p *Processor) ProcessFile(filePath string, opts ProcessorOptions) error {
 		return fmt.Errorf("failed to move file: %w", err)
 	}
 
+	// Fetch cover art if enabled
+	if p.coverFetcher != nil {
+		artist := metadata.AlbumArtist()
+		if artist == "" {
+			artist = metadata.Artist()
+		}
+		album := metadata.Album()
+		if err := p.coverFetcher.FetchCover(targetDir, artist, album); err != nil {
+			p.logger.Warnf("failed to fetch cover for %s: %v", targetDir, err)
+		}
+	}
+
 	// Cleanup empty source directory if enabled
 	if opts.CleanupEmptyDirs {
 		sourceDir := filepath.Dir(filePath)
