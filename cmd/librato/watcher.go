@@ -22,7 +22,7 @@ type Watcher struct {
 
 	fsWatcher *fsnotify.Watcher
 	processor *internal.Processor
-	state     *internal.DaemonState
+	state     *internal.DaemonState // in-memory stats, not persisted
 
 	pendingFiles map[string]*FileEvent
 	pendingMutex sync.RWMutex
@@ -218,24 +218,15 @@ func (w *Watcher) processFile(filePath string) {
 	delete(w.pendingFiles, filePath)
 	w.pendingMutex.Unlock()
 
-	log.Infof("processing file: %s", filePath)
+	if w.state.IsKnown(filePath) {
+		log.Infof("re-processing file: %s", filePath)
+	} else {
+		log.Infof("processing file: %s", filePath)
+	}
 
 	// Verify file still exists and is readable
 	if err := w.verifyFileReady(filePath); err != nil {
 		log.Warnf("file not ready, skipping: %v", err)
-		return
-	}
-
-	// Compute hash for duplicate detection
-	hash, err := internal.ComputeFileHash(filePath)
-	if err != nil {
-		log.Errorf("failed to compute hash for %s: %v", filePath, err)
-		return
-	}
-
-	// Check if already processed
-	if w.state.IsProcessed(filePath, hash) {
-		log.Infof("file %s already processed, skipping", filePath)
 		return
 	}
 
@@ -246,29 +237,15 @@ func (w *Watcher) processFile(filePath string) {
 		WatchDir:         w.watchDir,
 	}
 
-	targetPath := ""
 	success := false
-	err = w.processor.ProcessFile(filePath, opts)
-	if err != nil {
+	if err := w.processor.ProcessFile(filePath, opts); err != nil {
 		log.Errorf("failed to process %s: %v", filePath, err)
 	} else {
 		success = true
 		log.Infof("successfully processed %s", filePath)
 	}
 
-	// Record in state
-	w.state.MarkProcessed(internal.ProcessedFile{
-		Path:        filePath,
-		Hash:        hash,
-		ProcessedAt: time.Now(),
-		TargetPath:  targetPath,
-		Success:     success,
-	})
-
-	// Save state
-	if err := w.state.Save(); err != nil {
-		log.Errorf("failed to save state: %v", err)
-	}
+	w.state.MarkProcessed(filePath, success)
 }
 
 // verifyFileReady checks if a file is ready to process

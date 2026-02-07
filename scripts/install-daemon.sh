@@ -15,15 +15,13 @@ useradd -r -s /bin/false librato 2>/dev/null || echo "User 'librato' already exi
 
 # Create directories
 echo "Creating directories..."
-mkdir -p /var/lib/librato
 mkdir -p /var/run/librato
 mkdir -p /etc/librato
 
 # Set permissions
 echo "Setting permissions..."
-chown librato:librato /var/lib/librato
 chown librato:librato /var/run/librato
-chmod 755 /var/lib/librato /var/run/librato
+chmod 755 /var/run/librato
 
 # Install binary
 echo "Installing binary..."

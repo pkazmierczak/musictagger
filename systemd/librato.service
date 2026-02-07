@@ -13,10 +13,9 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/librato /mnt/music /mnt/incoming
+ReadWritePaths=/var/run/librato /mnt/music /mnt/incoming
 
 # Runtime
-WorkingDirectory=/var/lib/librato
 PIDFile=/var/run/librato/librato.pid
 
 # Command - all settings read from /etc/librato/config.json

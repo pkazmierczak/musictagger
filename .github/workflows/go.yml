@@ -104,10 +104,10 @@ jobs:
           #!/bin/sh
           set -e
           if ! getent passwd librato > /dev/null; then
-              adduser --system --group --no-create-home --home /var/lib/librato librato
+              adduser --system --group --no-create-home --home /nonexistent librato
           fi
-          mkdir -p /var/lib/librato /var/run/librato /etc/librato
-          chown librato:librato /var/lib/librato /var/run/librato
+          mkdir -p /var/run/librato /etc/librato
+          chown librato:librato /var/run/librato
           if [ ! -f /etc/librato/config.json ] && [ -f /etc/librato/config.json.example ]; then
               cp /etc/librato/config.json.example /etc/librato/config.json
               chown librato:librato /etc/librato/config.json
@@ -122,7 +122,7 @@ jobs:
           if [ "$1" = "purge" ]; then
               deluser --system librato || true
               delgroup --system librato || true
-              rm -rf /var/lib/librato /var/run/librato /etc/librato
+              rm -rf /var/run/librato /etc/librato
           fi
           EOF
           chmod 0755 "${PKG_DIR}/DEBIAN/postrm"
@@ -175,14 +175,14 @@ jobs:
           # Create pre-install script
           cat > prein.sh << 'EOF'
           getent group librato >/dev/null || groupadd -r librato
-          getent passwd librato >/dev/null || useradd -r -g librato -d /var/lib/librato -s /sbin/nologin -c "Librato daemon" librato
+          getent passwd librato >/dev/null || useradd -r -g librato -d /nonexistent -s /sbin/nologin -c "Librato daemon" librato
           EOF
 
           # Create post-install script
           cat > postin.sh << 'EOF'
           systemctl daemon-reload >/dev/null 2>&1 || :
-          mkdir -p /var/lib/librato /var/run/librato
-          chown librato:librato /var/lib/librato /var/run/librato
+          mkdir -p /var/run/librato
+          chown librato:librato /var/run/librato
           if [ ! -f /etc/librato/config.json ] && [ -f /etc/librato/config.json.example ]; then
               cp /etc/librato/config.json.example /etc/librato/config.json
               chown librato:librato /etc/librato/config.json

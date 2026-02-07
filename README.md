@@ -11,7 +11,7 @@ A music file organizer that uses ID3 tags to automatically organize your music l
 - **Daemon mode**: Run as a background service that watches a directory for new files
 - **Cover art fetching**: Optionally download missing album covers from MusicBrainz/Cover Art Archive
 - **Quarantine for untagged files**: Files without metadata are moved to a separate directory
-- **State persistence**: Daemon mode tracks processed files to avoid duplicates
+- **Idempotent processing**: Files can be safely re-processed at any time
 - **Systemd integration**: Easy deployment as a Linux service
 
 ## Installation
@@ -122,7 +122,6 @@ For daemon mode, add a `daemon` section:
     "watch_dir": "/mnt/incoming/music",
     "quarantine_dir": "/mnt/incoming/needs-tagging",
     "debounce_time": "3s",
-    "state_file": "/var/lib/librato/state.json",
     "pid_file": "/var/run/librato.pid",
     "scan_on_startup": true,
     "cleanup_empty_dirs": true

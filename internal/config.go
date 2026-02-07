@@ -25,8 +25,7 @@ type Config struct {
 type DaemonConfig struct {
 	WatchDir         string `json:"watch_dir"`
 	QuarantineDir    string `json:"quarantine_dir"`
-	DebounceTime     string `json:"debounce_time"`     // Duration string e.g. "2s"
-	StateFile        string `json:"state_file"`
+	DebounceTime     string `json:"debounce_time"` // Duration string e.g. "2s"
 	PIDFile          string `json:"pid_file"`
 	ScanOnStartup    bool   `json:"scan_on_startup"`
 	CleanupEmptyDirs bool   `json:"cleanup_empty_dirs"`
@@ -46,7 +45,6 @@ func DefaultConfig() Config {
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
 		DebounceTime:     "2s",
-		StateFile:        "/var/lib/librato/state.json",
 		PIDFile:          "/var/run/librato.pid",
 		ScanOnStartup:    true,
 		CleanupEmptyDirs: true,
@@ -77,9 +75,6 @@ func LoadConfig(path string) (Config, error) {
 		defaults := DefaultDaemonConfig()
 		if config.Daemon.DebounceTime == "" {
 			config.Daemon.DebounceTime = defaults.DebounceTime
-		}
-		if config.Daemon.StateFile == "" {
-			config.Daemon.StateFile = defaults.StateFile
 		}
 		if config.Daemon.PIDFile == "" {
 			config.Daemon.PIDFile = defaults.PIDFile

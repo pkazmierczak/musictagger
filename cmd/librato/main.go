@@ -156,7 +156,6 @@ func runDaemon(config internal.Config) {
 		WatchDir:      dc.WatchDir,
 		QuarantineDir: dc.QuarantineDir,
 		PIDFile:       dc.PIDFile,
-		StateFile:     dc.StateFile,
 		DebounceTime:  debounceTime,
 		ScanOnStartup: dc.ScanOnStartup,
 		CleanupEmpty:  dc.CleanupEmptyDirs,

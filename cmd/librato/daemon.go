@@ -30,7 +30,6 @@ type DaemonOptions struct {
 	WatchDir      string
 	QuarantineDir string
 	PIDFile       string
-	StateFile     string
 	DebounceTime  time.Duration
 	ScanOnStartup bool
 	CleanupEmpty  bool
@@ -45,9 +44,6 @@ func NewDaemon(processor *internal.Processor, opts DaemonOptions) (*Daemon, erro
 	if opts.QuarantineDir == "" {
 		return nil, fmt.Errorf("quarantine directory is required")
 	}
-	if opts.StateFile == "" {
-		opts.StateFile = "/var/lib/librato/state.json"
-	}
 	if opts.PIDFile == "" {
 		opts.PIDFile = "/var/run/librato.pid"
 	}
@@ -55,11 +51,7 @@ func NewDaemon(processor *internal.Processor, opts DaemonOptions) (*Daemon, erro
 		opts.DebounceTime = 2 * time.Second
 	}
 
-	// Load or create state
-	state, err := internal.LoadState(opts.StateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load state: %w", err)
-	}
+	state := internal.NewDaemonState()
 
 	// Create watcher
 	watcherOpts := WatcherOptions{
@@ -117,10 +109,6 @@ func (d *Daemon) Start() error {
 func (d *Daemon) Run() error {
 	log.Info("daemon running, waiting for events")
 
-	// Periodic state cleanup
-	cleanupTicker := time.NewTicker(24 * time.Hour)
-	defer cleanupTicker.Stop()
-
 	// Periodic stats logging
 	statsTicker := time.NewTicker(1 * time.Hour)
 	defer statsTicker.Stop()
@@ -131,15 +119,7 @@ func (d *Daemon) Run() error {
 			log.Infof("received signal %v, shutting down", sig)
 			return d.Shutdown()
 
-		case <-cleanupTicker.C:
-			// Clean up old state entries (30 days)
-			d.state.Cleanup(30 * 24 * time.Hour)
-			if err := d.state.Save(); err != nil {
-				log.Errorf("failed to save state after cleanup: %v", err)
-			}
-
 		case <-statsTicker.C:
-			// Log statistics
 			stats := d.state.GetStats()
 			log.Infof("daemon stats: processed=%d success=%d failed=%d uptime=%v",
 				stats.TotalProcessed, stats.TotalSuccess, stats.TotalFailed,
@@ -152,14 +132,15 @@ func (d *Daemon) Run() error {
 func (d *Daemon) Shutdown() error {
 	log.Info("shutting down daemon")
 
+	// Log final stats
+	stats := d.state.GetStats()
+	log.Infof("final stats: processed=%d success=%d failed=%d uptime=%v",
+		stats.TotalProcessed, stats.TotalSuccess, stats.TotalFailed,
+		time.Since(stats.StartTime))
+
 	// Stop watcher (waits for in-flight operations)
 	if err := d.watcher.Stop(); err != nil {
 		log.Errorf("error stopping watcher: %v", err)
-	}
-
-	// Save final state
-	if err := d.state.Save(); err != nil {
-		log.Errorf("failed to save final state: %v", err)
 	}
 
 	// Remove PID file

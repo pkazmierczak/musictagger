@@ -24,8 +24,7 @@ func newTestWatcher(t *testing.T, watchDir string) *Watcher {
 	config.Library = t.TempDir()
 	processor := internal.NewProcessor(config, config.Library, true, logger, nil)
 
-	stateFile := filepath.Join(t.TempDir(), "state.gob")
-	state := internal.NewDaemonState(stateFile)
+	state := internal.NewDaemonState()
 
 	quarantineDir := filepath.Join(t.TempDir(), "quarantine")
 
@@ -118,15 +117,17 @@ func TestWatcher_HandleEvent_FileInNewDirectory(t *testing.T) {
 	filePath := filepath.Join(newDir, "track.bin")
 	must.NoError(t, os.WriteFile(filePath, []byte("data"), 0644))
 
-	// The file should appear in pending files after debouncing starts
+	// The file should be picked up — either still pending or already processed
 	must.Wait(t, wait.InitialSuccess(
 		wait.Timeout(2*time.Second),
 		wait.Gap(50*time.Millisecond),
 		wait.BoolFunc(func() bool {
+			// Check if it's still pending
 			w.pendingMutex.RLock()
-			defer w.pendingMutex.RUnlock()
-			_, exists := w.pendingFiles[filePath]
-			return exists
+			_, pending := w.pendingFiles[filePath]
+			w.pendingMutex.RUnlock()
+			// Or already processed
+			return pending || w.state.IsKnown(filePath)
 		}),
 	))
 }

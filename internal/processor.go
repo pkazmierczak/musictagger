@@ -1,9 +1,7 @@
 package internal
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -260,22 +258,6 @@ func (p *Processor) cleanupEmptyDir(dir string, rootDir string) error {
 	}
 
 	return nil
-}
-
-// ComputeFileHash computes SHA256 hash of a file for duplicate detection
-func ComputeFileHash(filePath string) (string, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 // getAllTags traverses a given directory recursively and extracts all tags it

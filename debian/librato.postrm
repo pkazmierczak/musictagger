@@ -11,8 +11,7 @@ case "$1" in
             delgroup --system librato || true
         fi
 
-        # Remove state directories
-        rm -rf /var/lib/librato
+        # Remove runtime directories
         rm -rf /var/run/librato
         rm -rf /etc/librato
         ;;
