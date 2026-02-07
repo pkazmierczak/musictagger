@@ -1,6 +1,6 @@
 # Pattern Configuration Guide
 
-Musictagger now supports configurable renaming patterns using a template syntax.
+Librato supports configurable renaming patterns using a template syntax.
 
 ## Quick Start
 
@@ -8,6 +8,7 @@ Create a `config.json` file:
 
 ```json
 {
+  "library": "/path/to/music/library",
   "replacements": {
     " ": "_",
     "&": "_"
@@ -19,10 +20,10 @@ Create a `config.json` file:
 }
 ```
 
-Run with the config file:
+Run with the config file (the library path is set in `config.json`):
 
 ```bash
-musictagger -library /path/to/library -source /path/to/source -config config.json
+librato -config config.json -source /path/to/source
 ```
 
 ## Available Template Variables
@@ -105,32 +106,12 @@ Result: `the_beatles/abbey_road-01-come_together.flac`
 
 Result: `the_beatles/1969-abbey_road-01-come_together.flac`
 
-## Configuration Methods
-
-### 1. Config File (Recommended)
+## Configuration
 
 Create a `config.json` file with both replacements and patterns:
 
 ```bash
-musictagger -library /music -source /downloads -config config.json
-```
-
-### 2. CLI Flags (Override)
-
-Override patterns from command line:
-
-```bash
-musictagger -library /music \
-  -dir-pattern "{{year}}/{{artist}}" \
-  -file-pattern "{{album}}-{{track}}-{{title}}"
-```
-
-### 3. Legacy Mode
-
-Still works with the old replacements.json:
-
-```bash
-musictagger -library /music -replacements replacements.json
+librato -config config.json -source /downloads
 ```
 
 ## Pattern Processing
@@ -149,4 +130,3 @@ All patterns are processed with the following steps:
 - Spaces and special characters are replaced according to your replacements table
 - Multi-disc albums automatically get the disc prefix when using `{{disc_prefix}}`
 - If a config file is not found, defaults are used without error
-- CLI flags always override config file settings

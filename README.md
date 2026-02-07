@@ -21,7 +21,7 @@ A music file organizer that uses ID3 tags to automatically organize your music l
 ```bash
 git clone https://github.com/pkazmierczak/librato
 cd librato
-make build
+make release
 ```
 
 ## Usage
@@ -66,7 +66,7 @@ For production deployment as a systemd service:
 
 ```bash
 # Build the binary
-make build
+make release
 
 # Install as systemd service (requires root)
 sudo ./scripts/install-daemon.sh
